@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "../public/fonts/inter.css";
+@import "../public/fonts/roboto.css";
+@import "../public/fonts/lexend.css";
+@import "../public/fonts/opensans.css";
+@import "../public/fonts/raleway.css";
+
+.bg-stars-back {
+  background-image: url('src/assets/back-stars.png');
+  background-size: cover;
+}
