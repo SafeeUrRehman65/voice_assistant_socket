@@ -9,14 +9,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Path to the audio file
-AUDIO_FILE = "../audio/audio.wav"
 
-def transcribe():
+def transcribe(file_path):
     try:
         # STEP 1 Create a Deepgram client using the API key
         deepgram = DeepgramClient(api_key=os.getenv("DEEPGRAM_AI_API_KEY"))
 
-        with open(AUDIO_FILE, "rb") as file:
+        with open(file_path, "rb") as file:
             buffer_data = file.read()
 
         payload: FileSource = {
@@ -38,4 +37,6 @@ def transcribe():
 
     except Exception as e:
         print(f"Exception: {e}")
+        return f"Some error occured: {e}"
+        
 

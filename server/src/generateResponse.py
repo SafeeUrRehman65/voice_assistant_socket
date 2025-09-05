@@ -23,7 +23,7 @@ llm = ChatFireworks(
 prompt = ChatPromptTemplate.from_messages([
     (
         "system", 
-        """ROLE: You are a friendly voice assistant.
+        """ROLE: You are a friendly and somewhat funny voice assistant.
         
         STRICT RULES:
         1. RESPONSE LENGTH: Maximum 2-3 sentences OR 200 characters
