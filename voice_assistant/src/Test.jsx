@@ -8,31 +8,46 @@ function Tester() {
   const VadRef = useRef(null);
   const timeIntervalRef = useRef(null);
   const transcriptionRef = useRef(null);
-
+  const bufferChunksRef = useRef([])
   const vad = useMicVAD({
     startOnLoad: false,
     onSpeechStart: () => {
       console.log("Speech Started");
     },
-    onFrameProcessed: ({ isSpeech }, frame) => {
-      if (vad.userSpeaking) {
-        const old = currentBufferRef.current;
-        const updated = new Float32Array(old.length + frame.length);
-        updated.set(old);
-        updated.set(frame, old.length);
-        currentBufferRef.current = updated;
-        console.log("chunk pushed into array");
-      } else {
-        return;
-      }
-    },
+    // onFrameProcessed: ({ isSpeech, notSpeech }, frame) => {
+    //   if (vad.userSpeaking) {
+    //     // const old = currentBufferRef.current;
+    //     // const updated = new Float32Array(old.length + frame.length);
+    //     // updated.set(old);
+    //     // updated.set(frame, old.length);
+    //     // currentBufferRef.current = updated;
+    //     bufferChunksRef.current.push(frame)
+    //     console.log("chunk pushed into array");
+    //   } else {
+    //     return;
+    //   }
+    // },
     onSpeechEnd: (audio) => {
+      if (webSocketRef.current?.readyState === WebSocket.OPEN) {
+        const wavAudio = encodeWAV(audio)
+        console.log("Sending data chunk", wavAudio);
+        webSocketRef.current.send(wavAudio);
+      }
       console.log("Speech ended: speak again");
     },
   });
 
   VadRef.current = vad;
 
+  const startVAD = () => {
+    VadRef.current.start()
+  }
+
+  useEffect(() => {
+    return () => {
+      VadRef.current?.pause()
+    }
+  }, [])
   useEffect(() => {
     const websocket = new WebSocket("ws://localhost:8000/ws");
     webSocketRef.current = websocket;
@@ -72,31 +87,72 @@ function Tester() {
     };
   }, []);
 
-  useEffect(() => {
-    timeIntervalRef.current = setInterval(() => {
-      if (currentBufferRef.current.length > 0 && VadRef.current.userSpeaking) {
-        const wavAudio = encodeWAV(currentBufferRef.current);
+  // useEffect(() => {
+  //   timeIntervalRef.current = setInterval(() => {
+  //     if (bufferChunksRef.current.length > 0 && VadRef.current.userSpeaking) {
+  //       // const wavAudio = encodeWAV(currentBufferRef.current);
 
-        if (webSocketRef.current?.readyState === WebSocket.OPEN) {
-          console.log("Sending data chunk", wavAudio);
-          webSocketRef.current.send(wavAudio);
-        }
+  //       // if (webSocketRef.current?.readyState === WebSocket.OPEN) {
+  //       // console.log("Sending data chunk", wavAudio);
+  //       // webSocketRef.current.send(wavAudio);
+  //       flushAudioBuffer()
+  //       // }
 
-        currentBufferRef.current = new Float32Array(0);
+  //       // currentBufferRef.current = new Float32Array(0);
+  //     }
+  //   }, 2000);
+
+  //   return () => {
+  //     clearInterval(timeIntervalRef.current);
+  //   };
+  // }, []);
+
+  const flushAudioBuffer = () => {
+    const chunks = bufferChunksRef.current
+    console.log("Buffer chunks content", bufferChunksRef.current)
+
+    if (chunks.length === 0) return
+    const totalLength = chunks.reduce((sum, chunk) => {
+      if (!chunk || !(chunk instanceof Float32Array)) {
+        console.warn("Invalid chunk detected:", chunk)
+        return sum;
       }
-    }, 2000);
 
-    return () => {
-      clearInterval(timeIntervalRef.current);
-    };
-  }, []);
+      return sum + chunk.length
+    }, 0)
 
+    if (totalLength === 0) {
+      console.warn("Total audio length is 0, skipping.");
+      return;
+    }
+
+    const combined = new Float32Array(totalLength)
+    let offset = 0
+    for (const chunk of chunks) {
+      if ((!chunk instanceof Float32Array)) {
+        console.warn("Skipping invalid chunk:", chunk)
+        continue
+      }
+
+      if (offset + chunk.length > combined.length) {
+        console.error(`Offset overflow: offset(${offset}) + chunk.length(${chunk.length}) `)
+        break
+      }
+      combined.set(chunk, offset);
+      offset += chunk.length
+    }
+
+    const wavAudio = encodeWAV(combined)
+    if (webSocketRef.current?.readyState === WebSocket.OPEN) {
+      webSocketRef.current.send(wavAudio)
+    }
+
+    bufferChunksRef.current = []
+  }
   return (
     <div className="App pt-4">
       <button
-        onClick={() => {
-          VadRef.current?.start();
-        }}
+        onClick={startVAD}
         className="cursor-pointer bg-blue-200 hover:bg-blue-400 px-3 py-2 rounded-md"
       >
         Start Recording
@@ -108,3 +164,4 @@ function Tester() {
 }
 
 export default Tester;
+

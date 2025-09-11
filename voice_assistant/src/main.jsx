@@ -7,6 +7,6 @@ import Tester from "./Test.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <Tester />
+    <VoiceAssistant />
   </StrictMode>
 );

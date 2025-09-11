@@ -1,21 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import reactLogo from "./assets/react.svg";
 import SplineChips from "./components/spline-chips.jsx";
-import viteLogo from "/vite.svg";
-
 import { typeGreeting } from "./utils/typeUtil.js";
-import { FaMicrophone } from "react-icons/fa";
+import { FaBreadSlice, FaMicrophone } from "react-icons/fa";
 import { STATES } from "./utils/STATES.js";
 import { useMicVAD } from "@ricky0123/vad-react";
-import { encodeWAV } from "@ricky0123/vad-web/dist/utils.js";
-
 import { prompts_responses } from "./utils/STATES.js";
+import { once } from "ws";
 
 export const VoiceAssistant = () => {
-  const [count, setCount] = useState(0);
   const [websocket, setWebSocket] = useState(null);
-  const [inboxMessage, setInboxMessage] = useState(null);
-  const [sentMessage, setSentMessage] = useState(null);
   const [notification, setNotification] = useState("");
   const audioRef = useRef(null);
   const currentStateRef = useRef();
@@ -29,11 +22,8 @@ export const VoiceAssistant = () => {
   const timerRefChar = useRef();
   const VADRef = useRef();
   const [showStartSpeaking, setshowStartSpeaking] = useState(false);
-  const voiceIntervalRef = useRef();
-  const silenceTimerRef = useRef(null);
-  const speechCounterRef = useRef(0);
-  const prompt_response_obj = { prompt: "", response: "" };
-  const [prompt_response, setprompt_response] = useState([prompt_response_obj]);
+
+  const [prompt_response, setprompt_response] = useState([]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -45,13 +35,29 @@ export const VoiceAssistant = () => {
   }, [prompt_response]);
 
   const addPrompt = (prompt) => {
-    if (!prompt.trim()) return;
+    if (!prompt || prompt.length === 0) return;
 
-    setprompt_response((prev) => [...prev, { prompt: prompt, response: "" }]);
+    setprompt_response((prev) => {
+      const requiredIndex = prev.findIndex(obj => obj.segment_id === prompt.segment_id)
+
+      let updatedMessage;
+
+      if (requiredIndex !== -1) {
+        updatedMessage = [...prev]
+        updatedMessage[requiredIndex] = {
+          ...updatedMessage[requiredIndex],
+          segment_text: prompt.segment_text
+        }
+      } else {
+        updatedMessage = [...prev, { segment_id: prompt.segment_id, segment_text: prompt.segment_text, response_id: "", response_text: "" }]
+      }
+      return updatedMessage
+    })
   };
 
+
   const addResponse = (response) => {
-    if (!response.trim()) return;
+    if (!response.response_text.trim()) return;
 
     setprompt_response((prev) => {
       if (prev.length === 0) return prev;
@@ -60,7 +66,8 @@ export const VoiceAssistant = () => {
       const updatedMessage = [...prev];
       updatedMessage[lastIndex] = {
         ...updatedMessage[lastIndex],
-        response: response,
+        response_id: response.response_id,
+        response_text: response.response_text
       };
 
       return updatedMessage;
@@ -69,70 +76,43 @@ export const VoiceAssistant = () => {
 
   const vad = useMicVAD({
     startOnLoad: false,
-    onSpeechEnd: (audio) => {
-      console.log("User stopped speaking", typeof audio);
-      currentStateRef.current = STATES.PROCESSING;
-      sendStream(audio);
-      setNotification("User stopped speaking");
-      // console.log("Audio", audio);
-    },
     onSpeechStart: () => {
-      console.log("Speech started");
-      if (showStartSpeaking) {
-        setshowStartSpeaking(false);
-      }
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
-      currentStateRef.current = STATES.LISTENING;
-      setNotification("Listening....");
+      console.log("Speech recording started!")
     },
-  });
-  VADRef.current = vad;
+    onFrameProcessed: ({ isSpeech, notSpeech }, frame) => {
+      if (vad.userSpeaking) {
+        const chunk = float32ToPCM16(frame)
+        if (chunk) {
+          console.log('PCM 16 chunk', chunk)
+          // Send pcm 16 chunk to server for further processing
+          try {
+            websocketRef.current.send(chunk)
+          } catch (error) {
+            console.error("Some error occured while sending PCM 16 audio chunks to server", error)
+          }
+        }
 
-  //send audio stream to backend
-  const sendStream = (audio) => {
-    const response_data = {
-      type: "audio_metadata",
-      format: "audio_bytes",
-      message: "Audio metadata for the upcoming audio",
-    };
+      }
+    },
+    onSpeechEnd: (audio) => {
 
-    const wavBlob = encodeWAV(audio);
+    }
+  })
+  VADRef.current = vad
 
-    websocketRef.current.send(wavBlob);
-    console.log("Ohkayy", wavBlob);
-  };
 
-  // voiceIntervalRef.current = setInterval(() => {
-  //   if (VADRef.current.userSpeaking) {
-  //     speechCounterRef.current++;
-  //     if (VADRef.current.userSpeaking && speechCounterRef.current > 2) {
-  //       // cancel the previous request sent and pause the audio instantly
 
-  //       // request cancellation logic here
-  //       // set state to LISTENING
-  //       currentStateRef.current = STATES.LISTENING;
-  //       audioRef.current.pause();
-  //       // reset the speechcounter
-  //       speechCounterRef.current = 0;
-  //     }
-  //     if (silenceTimerRef.current) {
-  //       clearTimeout(silenceTimerRef.current);
-  //       silenceTimerRef.current = null;
-  //     }
-  //   } else {
-  //     speechCounterRef.current = 0;
-  //     if (!silenceTimerRef.current && currentStateRef.current == "listening") {
-  //       silenceTimerRef.current = setTimeout(() => {
-  //         console.log("Stopping audio after 1 second of silence");
-  //         VADRef.current.pause();
-  //         currentStateRef.current = "processing";
-  //       }, 5000);
-  //     }
-  //   }
-  // }, 200);
+  // Convert float32 array to PCM 16-bit little-endian
+  function float32ToPCM16(float32Array) {
+    const pcm16 = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      // Clamp to [-1, 1] and convert to 16-bit signed integer
+      const sample = Math.max(-1, Math.min(1, float32Array[i]));
+      pcm16[i] = sample * 0x7FFF;
+    }
+    return pcm16.buffer; // Return as ArrayBuffer for WebSocket
+  }
+
 
   useEffect(() => {
     if (greetingRef.current) {
@@ -147,6 +127,7 @@ export const VoiceAssistant = () => {
   }, [greeting]);
 
   useEffect(() => {
+
     const websocket = new WebSocket("ws://localhost:8080/ws");
     setWebSocket(websocket);
     websocketRef.current = websocket;
@@ -157,10 +138,9 @@ export const VoiceAssistant = () => {
     };
 
     websocketRef.current.onmessage = (event) => {
-      console.log("New Message from server, Content:", event.data);
-
       const response_data = JSON.parse(event.data);
       console.log("Parsed Response:", response_data);
+      const chunks = []
       if (response_data && response_data.phase) {
         const response_type = response_data.type;
         const response_phase = response_data.phase;
@@ -178,7 +158,7 @@ export const VoiceAssistant = () => {
                 setNotification("Start Speaking!");
                 console.log(currentStateRef.current);
               };
-              setShowMicrophone(false);
+
             }
           case "transcription":
             const transcription = response_data.transcription;
@@ -199,6 +179,21 @@ export const VoiceAssistant = () => {
               currentStateRef.current = STATES.SPEAKING;
             }
 
+          case "audio_chunk":
+          // if (sourceBuffer) {
+          //   const hexString = response_data.audio_chunk
+          //   const bytes = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)))
+
+          //   if (!sourceBuffer.updating && queue.length === 0) {
+          //     sourceBuffer.appendBuffer(bytes)
+          //   } else {
+          //     queue.push(bytes)
+          //   }
+          //   if (audioRef.current.paused) {
+          //     audioRef.current.play().catch(e => console.warn("Playback error: ", e))
+          //   }
+          //   break
+          // }
           default:
             setNotification("Unkown phase", response_phase);
         }
@@ -232,6 +227,7 @@ export const VoiceAssistant = () => {
         message: "Start the conversation with Voice Agent",
       };
       websocketRef.current.send(JSON.stringify(response_data));
+      setShowMicrophone(false);
     }
   };
 
@@ -249,7 +245,7 @@ export const VoiceAssistant = () => {
       <div className="w-full pt-6 flex flex-col items-center justify-center">
         <p
           ref={greetingRef}
-          className="text-center text-3xl roboto-300 text-zinc-300 whitespace-pre"
+          className="text-center text-3xl inter-200 text-zinc-300 whitespace-pre"
         ></p>
       </div>
       {showMicrophone ? (
@@ -265,7 +261,7 @@ export const VoiceAssistant = () => {
         <div className="container-prompt-responses mt-2 w-screen flex justify-center">
           <div
             ref={messagesEndRef}
-            className="lg:w-[70vw] h-[20vh] overflow-y-scroll scrollbar-hide"
+            className="lg:w-[70vw] w-full h-[20vh] overflow-y-scroll scrollbar-hide"
             style={{
               maskImage:
                 "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)",
@@ -273,22 +269,22 @@ export const VoiceAssistant = () => {
                 "linear-gradient(to bottom, transparent, black 15%, black 85%, transparent)",
             }}
           >
-            {prompt_response?.map((pair, index) => (
+            {prompt_response?.map((object, index) => (
               <div
                 key={index}
                 className="prompt-response-box flex flex-col gap-y-8 py-2 px-8"
               >
-                {pair["prompt"] ? (
-                  <div className="prompt-box rounded-lg border border-white/20 inter-200 backdrop-blur-sm p-2 self-end w-[40%]">
-                    <p className="inter-300 text-zinc-100">{pair["prompt"]}</p>
+
+                <div key={`prompt-${object["segment_id"]}`} className="prompt-box rounded-lg border border-white/20 inter-200 backdrop-blur-sm p-2 self-end w-[50%]">
+                  <p className="inter-300 text-zinc-100">{object?.segment_text ? object.segment_text : <span>Listening ...</span>}</p>
+                </div>
+
+                {object.response_text ? (
+                  <div key={`response-${object["response_id"]}`} className="prompt-box w-1/2 border border border-white/20 backdrop-blur-sm p-2 rounded-lg inter-300 w-[60%]">
+                    <p className="text-zinc-100">{object?.response_text ? object.response_text : null}</p>
                   </div>
                 ) : null}
 
-                {pair["response"] ? (
-                  <div className="prompt-box w-1/2 border border border-white/20 backdrop-blur-sm p-2 rounded-lg inter-300">
-                    <p className="text-zinc-100">{pair["response"]}</p>
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>
