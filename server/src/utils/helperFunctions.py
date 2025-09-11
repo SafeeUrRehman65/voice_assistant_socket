@@ -9,6 +9,7 @@ PHASE = {
     "TRANSCRIPTION": "transcription",
     "LLM_RESPONSE": "llm_response",
     "SPEECHIFY": "speechify",
+    "SILENCE": "silence",
     "AUDIO_CHUNK": "audio_chunk",
     "END":"end"
 }

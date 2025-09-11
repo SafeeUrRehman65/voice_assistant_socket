@@ -6,22 +6,31 @@ from dotenv import load_dotenv
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 from langchain_core.messages import trim_messages
-
+from langchain_groq import ChatGroq
 load_dotenv()
 
 
 workflow = StateGraph(state_schema = MessagesState)
 
-llm = ChatFireworks(
-    model="accounts/fireworks/models/kimi-k2-instruct",
-    temperature = 0.2,
-    api_key=os.getenv("FIREWORKS_API_KEY"),
-    max_tokens = None,
-    )
+# llm = ChatFireworks(
+#     model="accounts/fireworks/models/kimi-k2-instruct",
+#     temperature = 0.2,
+#     api_key=os.getenv("FIREWORKS_API_KEY"),
+#     max_tokens = None,
+#     )
+
+llm = ChatGroq(
+    api_key = os.getenv("GROQ_AI_API_KEY"),
+    model="groq/compound-mini",
+    temperature=0,
+    max_tokens=400,
+    timeout=None,
+    # other params...
+)
 
 # Make instructions more explicit and actionable
 system_prompt = """
-        ROLE: You are a friendly and somewhat funny voice assistant.
+        ROLE: Your name is Musa, You are a friendly and funny voice assistant.
         
         STRICT RULES:
         1. RESPONSE LENGTH: Maximum 2 sentences.

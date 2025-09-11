@@ -28,8 +28,8 @@ export const VoiceAssistant = () => {
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollTo({
-        top: messagesEndRef.current.scrollHeight,
-        behaviour: "smooth",
+        top: messagesEndRef.current.scrollHeight - 30,
+        behavior: "smooth",
       });
     }
   }, [prompt_response]);
@@ -38,23 +38,32 @@ export const VoiceAssistant = () => {
     if (!prompt || prompt.length === 0) return;
 
     setprompt_response((prev) => {
-      const requiredIndex = prev.findIndex(obj => obj.segment_id === prompt.segment_id)
+      const requiredIndex = prev.findIndex(
+        (obj) => obj.segment_id === prompt.segment_id
+      );
 
       let updatedMessage;
 
       if (requiredIndex !== -1) {
-        updatedMessage = [...prev]
+        updatedMessage = [...prev];
         updatedMessage[requiredIndex] = {
           ...updatedMessage[requiredIndex],
-          segment_text: prompt.segment_text
-        }
+          segment_text: prompt.segment_text,
+        };
       } else {
-        updatedMessage = [...prev, { segment_id: prompt.segment_id, segment_text: prompt.segment_text, response_id: "", response_text: "" }]
+        updatedMessage = [
+          ...prev,
+          {
+            segment_id: prompt.segment_id,
+            segment_text: prompt.segment_text,
+            response_id: "",
+            response_text: "",
+          },
+        ];
       }
-      return updatedMessage
-    })
+      return updatedMessage;
+    });
   };
-
 
   const addResponse = (response) => {
     if (!response.response_text.trim()) return;
@@ -67,7 +76,7 @@ export const VoiceAssistant = () => {
       updatedMessage[lastIndex] = {
         ...updatedMessage[lastIndex],
         response_id: response.response_id,
-        response_text: response.response_text
+        response_text: response.response_text,
       };
 
       return updatedMessage;
@@ -77,30 +86,36 @@ export const VoiceAssistant = () => {
   const vad = useMicVAD({
     startOnLoad: false,
     onSpeechStart: () => {
-      console.log("Speech recording started!")
+      console.log("Speech recording started!");
     },
+
     onFrameProcessed: ({ isSpeech, notSpeech }, frame) => {
-      if (vad.userSpeaking) {
-        const chunk = float32ToPCM16(frame)
-        if (chunk) {
-          console.log('PCM 16 chunk', chunk)
-          // Send pcm 16 chunk to server for further processing
-          try {
-            websocketRef.current.send(chunk)
-          } catch (error) {
-            console.error("Some error occured while sending PCM 16 audio chunks to server", error)
-          }
-        }
-
-      }
+      console.log(
+        "speech probab: ",
+        isSpeech,
+        "user speaking",
+        vad.userSpeaking
+      );
+      // if (vad.userSpeaking) {
+      //   const chunk = float32ToPCM16(frame);
+      //   if (chunk) {
+      //     console.log("PCM 16 chunk", chunk);
+      //     // Send pcm 16 chunk to server for further processing
+      //     try {
+      //       console.log("Audio chunk");
+      //       // websocketRef.current.send(chunk);
+      //     } catch (error) {
+      //       console.error(
+      //         "Some error occured while sending PCM 16 audio chunks to server",
+      //         error
+      //       );
+      //     }
+      //   }
+      // }
     },
-    onSpeechEnd: (audio) => {
-
-    }
-  })
-  VADRef.current = vad
-
-
+    onSpeechEnd: (audio) => {},
+  });
+  VADRef.current = vad;
 
   // Convert float32 array to PCM 16-bit little-endian
   function float32ToPCM16(float32Array) {
@@ -108,11 +123,10 @@ export const VoiceAssistant = () => {
     for (let i = 0; i < float32Array.length; i++) {
       // Clamp to [-1, 1] and convert to 16-bit signed integer
       const sample = Math.max(-1, Math.min(1, float32Array[i]));
-      pcm16[i] = sample * 0x7FFF;
+      pcm16[i] = sample * 0x7fff;
     }
     return pcm16.buffer; // Return as ArrayBuffer for WebSocket
   }
-
 
   useEffect(() => {
     if (greetingRef.current) {
@@ -127,7 +141,6 @@ export const VoiceAssistant = () => {
   }, [greeting]);
 
   useEffect(() => {
-
     const websocket = new WebSocket("ws://localhost:8080/ws");
     setWebSocket(websocket);
     websocketRef.current = websocket;
@@ -140,7 +153,7 @@ export const VoiceAssistant = () => {
     websocketRef.current.onmessage = (event) => {
       const response_data = JSON.parse(event.data);
       console.log("Parsed Response:", response_data);
-      const chunks = []
+      const chunks = [];
       if (response_data && response_data.phase) {
         const response_type = response_data.type;
         const response_phase = response_data.phase;
@@ -153,13 +166,20 @@ export const VoiceAssistant = () => {
               currentStateRef.current = STATES.SPEAKING;
               audioRef.current.onended = () => {
                 VADRef.current.start();
+                console.log("Microphone recording started.....");
                 currentStateRef.current = STATES.LISTENING;
                 setshowStartSpeaking(true);
                 setNotification("Start Speaking!");
                 console.log(currentStateRef.current);
               };
-
             }
+            break;
+          case "silence":
+            console.log("Might need silence");
+            if (audioRef.current && !audioRef.current.pause()) {
+              audioRef.current.pause();
+            }
+            break;
           case "transcription":
             const transcription = response_data.transcription;
             if (transcription) {
@@ -171,6 +191,7 @@ export const VoiceAssistant = () => {
             if (llm_response) {
               addResponse(llm_response);
             }
+            break;
           case "speechify":
             const audio_url = response_data.audio_url;
             if (audio_url && audioRef.current) {
@@ -178,24 +199,25 @@ export const VoiceAssistant = () => {
               audioRef.current.play();
               currentStateRef.current = STATES.SPEAKING;
             }
-
+            break;
           case "audio_chunk":
-          // if (sourceBuffer) {
-          //   const hexString = response_data.audio_chunk
-          //   const bytes = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)))
+            // if (sourceBuffer) {
+            //   const hexString = response_data.audio_chunk
+            //   const bytes = new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)))
 
-          //   if (!sourceBuffer.updating && queue.length === 0) {
-          //     sourceBuffer.appendBuffer(bytes)
-          //   } else {
-          //     queue.push(bytes)
-          //   }
-          //   if (audioRef.current.paused) {
-          //     audioRef.current.play().catch(e => console.warn("Playback error: ", e))
-          //   }
-          //   break
-          // }
+            //   if (!sourceBuffer.updating && queue.length === 0) {
+            //     sourceBuffer.appendBuffer(bytes)
+            //   } else {
+            //     queue.push(bytes)
+            //   }
+            //   if (audioRef.current.paused) {
+            //     audioRef.current.play().catch(e => console.warn("Playback error: ", e))
+            //   }
+            //   break
+            // }
+            break;
           default:
-            setNotification("Unkown phase", response_phase);
+            setNotification("Unknown phase", response_phase);
         }
       }
       setNotification("Connected to web socket : New message recieved");
@@ -245,7 +267,7 @@ export const VoiceAssistant = () => {
       <div className="w-full pt-6 flex flex-col items-center justify-center">
         <p
           ref={greetingRef}
-          className="text-center text-3xl inter-200 text-zinc-300 whitespace-pre"
+          className="text-center text-3xl roboto-300 text-zinc-300 whitespace-pre"
         ></p>
       </div>
       {showMicrophone ? (
@@ -258,9 +280,11 @@ export const VoiceAssistant = () => {
           </div>
         </div>
       ) : (
-        <div className="container-prompt-responses mt-2 w-screen flex justify-center">
+        <div
+          ref={messagesEndRef}
+          className="container-prompt-responses mt-2 w-screen flex justify-center"
+        >
           <div
-            ref={messagesEndRef}
             className="lg:w-[70vw] w-full h-[20vh] overflow-y-scroll scrollbar-hide"
             style={{
               maskImage:
@@ -274,17 +298,29 @@ export const VoiceAssistant = () => {
                 key={index}
                 className="prompt-response-box flex flex-col gap-y-8 py-2 px-8"
               >
-
-                <div key={`prompt-${object["segment_id"]}`} className="prompt-box rounded-lg border border-white/20 inter-200 backdrop-blur-sm p-2 self-end w-[50%]">
-                  <p className="inter-300 text-zinc-100">{object?.segment_text ? object.segment_text : <span>Listening ...</span>}</p>
+                <div
+                  key={`prompt-${object["segment_id"]}`}
+                  className="prompt-box rounded-lg border border-white/20 inter-200 backdrop-blur-sm p-2 self-end w-[50%]"
+                >
+                  <p className="inter-300 text-zinc-100">
+                    {object?.segment_text ? (
+                      object.segment_text
+                    ) : (
+                      <span>Listening ...</span>
+                    )}
+                  </p>
                 </div>
 
                 {object.response_text ? (
-                  <div key={`response-${object["response_id"]}`} className="prompt-box w-1/2 border border border-white/20 backdrop-blur-sm p-2 rounded-lg inter-300 w-[60%]">
-                    <p className="text-zinc-100">{object?.response_text ? object.response_text : null}</p>
+                  <div
+                    key={`response-${object["response_id"]}`}
+                    className="prompt-box w-1/2 border border border-white/20 backdrop-blur-sm p-2 rounded-lg inter-300 w-[60%]"
+                  >
+                    <p className="text-zinc-100">
+                      {object?.response_text ? object.response_text : null}
+                    </p>
                   </div>
                 ) : null}
-
               </div>
             ))}
           </div>

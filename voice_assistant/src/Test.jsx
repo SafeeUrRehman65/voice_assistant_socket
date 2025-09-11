@@ -8,7 +8,7 @@ function Tester() {
   const VadRef = useRef(null);
   const timeIntervalRef = useRef(null);
   const transcriptionRef = useRef(null);
-  const bufferChunksRef = useRef([])
+  const bufferChunksRef = useRef([]);
   const vad = useMicVAD({
     startOnLoad: false,
     onSpeechStart: () => {
@@ -29,7 +29,7 @@ function Tester() {
     // },
     onSpeechEnd: (audio) => {
       if (webSocketRef.current?.readyState === WebSocket.OPEN) {
-        const wavAudio = encodeWAV(audio)
+        const wavAudio = encodeWAV(audio);
         console.log("Sending data chunk", wavAudio);
         webSocketRef.current.send(wavAudio);
       }
@@ -40,14 +40,14 @@ function Tester() {
   VadRef.current = vad;
 
   const startVAD = () => {
-    VadRef.current.start()
-  }
+    VadRef.current.start();
+  };
 
   useEffect(() => {
     return () => {
-      VadRef.current?.pause()
-    }
-  }, [])
+      VadRef.current?.pause();
+    };
+  }, []);
   useEffect(() => {
     const websocket = new WebSocket("ws://localhost:8000/ws");
     webSocketRef.current = websocket;
@@ -108,47 +108,49 @@ function Tester() {
   // }, []);
 
   const flushAudioBuffer = () => {
-    const chunks = bufferChunksRef.current
-    console.log("Buffer chunks content", bufferChunksRef.current)
+    const chunks = bufferChunksRef.current;
+    console.log("Buffer chunks content", bufferChunksRef.current);
 
-    if (chunks.length === 0) return
+    if (chunks.length === 0) return;
     const totalLength = chunks.reduce((sum, chunk) => {
       if (!chunk || !(chunk instanceof Float32Array)) {
-        console.warn("Invalid chunk detected:", chunk)
+        console.warn("Invalid chunk detected:", chunk);
         return sum;
       }
 
-      return sum + chunk.length
-    }, 0)
+      return sum + chunk.length;
+    }, 0);
 
     if (totalLength === 0) {
       console.warn("Total audio length is 0, skipping.");
       return;
     }
 
-    const combined = new Float32Array(totalLength)
-    let offset = 0
+    const combined = new Float32Array(totalLength);
+    let offset = 0;
     for (const chunk of chunks) {
-      if ((!chunk instanceof Float32Array)) {
-        console.warn("Skipping invalid chunk:", chunk)
-        continue
+      if (!chunk instanceof Float32Array) {
+        console.warn("Skipping invalid chunk:", chunk);
+        continue;
       }
 
       if (offset + chunk.length > combined.length) {
-        console.error(`Offset overflow: offset(${offset}) + chunk.length(${chunk.length}) `)
-        break
+        console.error(
+          `Offset overflow: offset(${offset}) + chunk.length(${chunk.length}) `
+        );
+        break;
       }
       combined.set(chunk, offset);
-      offset += chunk.length
+      offset += chunk.length;
     }
 
-    const wavAudio = encodeWAV(combined)
+    const wavAudio = encodeWAV(combined);
     if (webSocketRef.current?.readyState === WebSocket.OPEN) {
-      webSocketRef.current.send(wavAudio)
+      webSocketRef.current.send(wavAudio);
     }
 
-    bufferChunksRef.current = []
-  }
+    bufferChunksRef.current = [];
+  };
   return (
     <div className="App pt-4">
       <button
@@ -164,4 +166,3 @@ function Tester() {
 }
 
 export default Tester;
-

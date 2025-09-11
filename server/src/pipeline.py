@@ -5,6 +5,7 @@ from queue import Queue, Empty
 import json
 import threading
 import time
+# WebSocket client from websocket-client library (not websocket)
 import websocket
 import urllib.parse
 from dotenv import load_dotenv
@@ -29,7 +30,7 @@ class TranscriptionClient:
         self.state = {}
         self.lock = threading.Lock()
         self.audio_chunks = []
-        self.silence_threshold = 2.0
+        self.silence_threshold = 1.5
         self.frontend_ws = frontend_ws
         self.ws = None
         self.transcription_id = 0
@@ -116,7 +117,7 @@ class TranscriptionClient:
 
                     print(f"llm response data: {llm_response_data}")
 
-                    # send speechdata to frontend
+                    # send speech data to frontend
                     asyncio.run(self.frontend_ws.send_text(json.dumps(speech_data)))
                     # send llm data to frontend                    
                     asyncio.run(self.frontend_ws.send_text(json.dumps(llm_response_data)))
@@ -185,24 +186,30 @@ class TranscriptionClient:
 
             # Update transcription state
             if "segments" in data:
+                print("segment arrived")
+                asyncio.run(self.frontend_ws.send_text(json.dumps({"phase": PHASE["SILENCE"], "type": "silence"})))
                 self.last_audio_time = time.time()
-                last_segment = data["segments"][-1]
-                # Wrapping the latest transcription in the response data to send to frontend
-                
-                transcription_object = {"segment_id":self.transcription_id, "segment_text": last_segment["text"]}
-
-                response_data = {"phase": PHASE["TRANSCRIPTION"],"type": "transcription", "transcription": transcription_object}
-                
-                print("response_data", response_data)
-                asyncio.run(self.frontend_ws.send_text(json.dumps(response_data)))
-                
                 with self.lock:
 
                     # combine all segments in a state object with their respective ids
                     self.segments = {segment["id"]: segment["text"] for segment in data["segments"]}
 
+                    print("Current segments with their segment ids")
+                    print("------------------------")
+                    print(self.segments)
+                    print("------------------------")
                     # append all segments in a single id-text object
                     self.state = {self.transcription_id:' '.join(self.segments.values())}
+
+                    # Wrapping the latest transcription in the response data to send to frontend
+                
+                    transcription_object = {"segment_id":self.transcription_id, "segment_text": self.state[self.transcription_id]}
+
+                    response_data = {"phase": PHASE["TRANSCRIPTION"],"type": "transcription", "transcription": transcription_object}
+                    
+                    print("response_data", response_data)
+                    asyncio.run(self.frontend_ws.send_text(json.dumps(response_data)))
+                
                     self.display_transcription()
 
         except json.JSONDecodeError:
@@ -228,7 +235,7 @@ class TranscriptionClient:
         full_url = f"{WEBSOCKET_URL}?{params}"
 
         api_key = os.getenv("FIREWORKS_API_KEY")
-        print("Api_key", api_key)
+        
         if not api_key:
             raise ValueError("FIREWORKS_API_KEY environment variable not set")
 
@@ -264,7 +271,7 @@ class TranscriptionClient:
 
 
 def initiate_conversation(data = None):
-    audio_link = text_to_speech("Hey there, how can I help you today?")
+    audio_link = text_to_speech("Hey! I am Musa - an AI powered voice assistant, how can I help you today?")
     response_data = {"phase": PHASE["START"] ,"type":"audio_url", "audio_link": audio_link}
     return response_data
 
