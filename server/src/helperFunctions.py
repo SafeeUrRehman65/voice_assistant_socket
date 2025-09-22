@@ -1,5 +1,5 @@
-from generateResponse import generateResponse
-from text_to_speech import text_to_speech
+from .generateResponse import generateResponse
+from .text_to_speech import text_to_speech
 
 # different phase required during conversation with AI agent
 PHASE = {
