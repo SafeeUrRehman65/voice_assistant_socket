@@ -3,10 +3,7 @@
   "builds": [
     {
       "src": "src/pipeline.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": "src/utils/**/*"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
