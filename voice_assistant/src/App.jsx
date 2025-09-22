@@ -151,7 +151,7 @@ export const VoiceAssistant = () => {
 
   useEffect(() => {
     const websocket = new WebSocket(
-      `ws://${import.meta.env.VITE_BACKEND_WEBSOCKET_URL}/ws`
+      `wss://${import.meta.env.VITE_BACKEND_WEBSOCKET_URL}/ws`
     );
     setWebSocket(websocket);
     websocketRef.current = websocket;
