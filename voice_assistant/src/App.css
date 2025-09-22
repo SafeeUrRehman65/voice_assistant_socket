@@ -6,7 +6,7 @@
 @import "../public/fonts/raleway.css";
 
 .bg-stars-back {
-  background-image: url('src/assets/back-stars.png');
+  background-image: url("../public//assets/back-stars.png");
   background-size: cover;
 }
 
