@@ -280,7 +280,7 @@ def initiate_conversation(data = None):
 # initializing the fast api app
 app = FastAPI()
 
-@app.websocket('/wss')
+@app.websocket('/ws')
 async def websocket_endpoint(websocket: WebSocket):
 
     await websocket.accept()
