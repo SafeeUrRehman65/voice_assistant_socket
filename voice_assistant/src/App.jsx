@@ -25,10 +25,19 @@ export const VoiceAssistant = () => {
 
   const [prompt_response, setprompt_response] = useState([]);
 
+  // useEffect(() => {
+  //   if (messagesEndRef.current) {
+  //     messagesEndRef.current.scrollTo({
+  //       top: messagesEndRef.current.scrollHeight,
+  //       behavior: "smooth",
+  //     });
+  //   }
+  // }, [prompt_response]);
+
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollTo({
-        top: messagesEndRef.current.scrollHeight - 30,
+        top: messagesEndRef.current.scrollHeight,
         behavior: "smooth",
       });
     }
@@ -90,28 +99,28 @@ export const VoiceAssistant = () => {
     },
 
     onFrameProcessed: ({ isSpeech, notSpeech }, frame) => {
-      console.log(
-        "speech probab: ",
-        isSpeech,
-        "user speaking",
-        vad.userSpeaking
-      );
-      // if (vad.userSpeaking) {
-      //   const chunk = float32ToPCM16(frame);
-      //   if (chunk) {
-      //     console.log("PCM 16 chunk", chunk);
-      //     // Send pcm 16 chunk to server for further processing
-      //     try {
-      //       console.log("Audio chunk");
-      //       // websocketRef.current.send(chunk);
-      //     } catch (error) {
-      //       console.error(
-      //         "Some error occured while sending PCM 16 audio chunks to server",
-      //         error
-      //       );
-      //     }
-      //   }
-      // }
+      // console.log(
+      //   "speech probab: ",
+      //   isSpeech,
+      //   "user speaking",
+      //   vad.userSpeaking
+      // );
+      if (vad.userSpeaking) {
+        const chunk = float32ToPCM16(frame);
+        if (chunk) {
+          console.log("PCM 16 chunk", chunk);
+          // Send pcm 16 chunk to server for further processing
+          try {
+            console.log("Audio chunk");
+            websocketRef.current.send(chunk);
+          } catch (error) {
+            console.error(
+              "Some error occured while sending PCM 16 audio chunks to server",
+              error
+            );
+          }
+        }
+      }
     },
     onSpeechEnd: (audio) => {},
   });
@@ -141,7 +150,9 @@ export const VoiceAssistant = () => {
   }, [greeting]);
 
   useEffect(() => {
-    const websocket = new WebSocket("ws://localhost:8080/ws");
+    const websocket = new WebSocket(
+      `ws://${import.meta.env.VITE_BACKEND_WEBSOCKET_URL}/ws`
+    );
     setWebSocket(websocket);
     websocketRef.current = websocket;
 
@@ -280,11 +291,9 @@ export const VoiceAssistant = () => {
           </div>
         </div>
       ) : (
-        <div
-          ref={messagesEndRef}
-          className="container-prompt-responses mt-2 w-screen flex justify-center"
-        >
+        <div className="container-prompt-responses mt-2 w-screen flex justify-center">
           <div
+            ref={messagesEndRef}
             className="lg:w-[70vw] w-full h-[20vh] overflow-y-scroll scrollbar-hide"
             style={{
               maskImage:
