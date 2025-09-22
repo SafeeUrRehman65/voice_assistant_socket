@@ -10,8 +10,8 @@ import websocket
 import urllib.parse
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket
-from helperFunctions import construct_llm_response
-from helperFunctions import PHASE
+from .helperFunctions import construct_llm_response
+from .helperFunctions import PHASE
 from text_to_speech import text_to_speech
 
 load_dotenv()
