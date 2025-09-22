@@ -1,0 +1,10 @@
+fastapi
+websocket-client
+websockets
+python-dotenv
+langchain
+langgraph
+langchain-fireworks
+langchain-groq
+langchain-core
+murf

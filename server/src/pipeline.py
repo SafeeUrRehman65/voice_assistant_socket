@@ -1,6 +1,6 @@
 import asyncio
 import os
-from socket import timeout
+# from socket import timeout
 from queue import Queue, Empty
 import json
 import threading
@@ -281,7 +281,7 @@ def initiate_conversation(data = None):
 # initializing the fast api app
 app = FastAPI()
 
-@app.websocket('/ws')
+@app.websocket('/wss')
 async def websocket_endpoint(websocket: WebSocket):
 
     await websocket.accept()
